@@ -3,38 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAS iOS 極速測試工具</title>
+    <title>GAS iOS 雙模式對照測試</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background: #1a1a1a; color: #fff; }
         .container { max-width: 600px; margin: 0 auto; }
+        .btn-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
         button { 
-            width: 100%; padding: 15px; font-size: 18px; font-weight: bold;
-            background: #28a745; color: white; border: none; border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); active { transform: translateY(2px); }
+            width: 100%; padding: 18px; font-size: 16px; font-weight: bold;
+            color: white; border: none; border-radius: 12px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s;
         }
+        button:active { transform: scale(0.98); }
+        .btn-ajax { background: #dc3545; } /* 紅色：原本失敗的方法 */
+        .btn-jsonp { background: #28a745; } /* 綠色：改進後的方法 */
         #log { 
-            margin-top: 20px; background: #000; padding: 15px; border-radius: 8px;
+            background: #000; padding: 15px; border-radius: 8px;
             font-family: "Courier New", Courier, monospace; font-size: 13px;
-            line-height: 1.6; overflow-x: auto; border: 1px solid #333;
-            min-height: 300px; white-space: pre-wrap;
+            line-height: 1.6; overflow-y: auto; border: 1px solid #333;
+            height: 400px; white-space: pre-wrap;
         }
-        .info { color: #aaa; }
-        .step { color: #00d4ff; font-weight: bold; }
-        .success { color: #2ecc71; }
-        .error { color: #e74c3c; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        .info { color: #aaa; font-size: 12px; }
+        .step { color: #00d4ff; font-weight: bold; margin-top: 10px; display: block; }
+        .success { color: #2ecc71; font-weight: bold; }
+        .error { color: #e74c3c; font-weight: bold; }
+        .divider { border-top: 1px dashed #444; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>GAS 通訊一鍵測試</h2>
-        <p class="info">目標網址：AKfycby...Grn4m9E</p>
-        <button onclick="runTest()">開始偵測連線</button>
-        <div id="log">等待指令...</div>
+        <h2>GAS iOS 實驗室</h2>
+        <p class="info">目標：證明 AJAX 與 JSONP 在 iOS 上的差異</p>
+        
+        <div class="btn-group">
+            <button class="btn-ajax" onclick="testAJAX()">方法 A：原本的 AJAX (會失敗)</button>
+            <button class="btn-jsonp" onclick="testJSONP()">方法 B：改進的 JSONP (會成功)</button>
+        </div>
+
+        <div id="log">等待測試中...</div>
     </div>
 
     <script>
-        // 你的 GAS Web App URL
         const GAS_URL = "https://script.google.com/macros/s/AKfycbycb73uf529EJECnc80W4byxzStlCxtZfMay_-xm_8LGrn4m9E/exec";
         const logDiv = document.getElementById('log');
 
@@ -43,60 +51,72 @@
             div.className = type;
             div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
             logDiv.appendChild(div);
-            window.scrollTo(0, document.body.scrollHeight);
+            logDiv.scrollTop = logDiv.scrollHeight;
         }
 
-        function runTest() {
-            logDiv.innerHTML = ""; // 清空
-            print(">>> 啟動測試流程", "step");
-            print(`瀏覽器核心: ${navigator.userAgent}`, "info");
-
-            // 1. 檢查是否在 HTTPS
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-                print("!! 警告: 非 HTTPS 環境可能導致 iOS 封鎖連線 !!", "error");
-            }
-
-            // 2. 準備 JSONP 參數
-            const callbackName = "jsonp_callback_" + Math.round(Math.random() * 100000);
-            const finalUrl = `${GAS_URL}?need=1&callback=${callbackName}&t=${Date.now()}`;
+        // --- 方法 A：原本的 AJAX GET ---
+        function testAJAX() {
+            print("--- 啟動方法 A (AJAX) ---", "step");
+            const xhr = new XMLHttpRequest();
+            const url = `${GAS_URL}?mode=AJAX_TEST&t=${Date.now()}`;
             
-            print(`發送 GET 請求 (JSONP 模式)...`, "step");
+            xhr.open("GET", url, true);
+            
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    print("✅ AJAX 成功回傳！", "success");
+                    print("回傳內容: " + xhr.responseText);
+                } else {
+                    print(`❌ AJAX 錯誤，狀態碼: ${xhr.status}`, "error");
+                }
+            };
 
-            // 3. 定義 Callback 處理函式
+            xhr.onerror = function() {
+                print("❌ AJAX 連線崩潰！", "error");
+                print("這證實了 iOS Safari 攔截了跨網域請求。", "error");
+            };
+
+            print("正在發送 AJAX GET 請求...", "info");
+            xhr.send();
+        }
+
+        // --- 方法 B：改進後的 JSONP ---
+        function testJSONP() {
+            print("--- 啟動方法 B (JSONP) ---", "step");
+            
+            const callbackName = "cb_" + Math.round(Math.random() * 100000);
+            const finalUrl = `${GAS_URL}?mode=JSONP_TEST&callback=${callbackName}&t=${Date.now()}`;
+            
+            // 1. 準備回傳接收器
             window[callbackName] = function(data) {
-                print("成功：已從 Google 伺服器接收到數據！", "success");
-                print("回傳內容預覽：", "success");
+                print("✅ JSONP 成功接收資料！", "success");
+                print("回傳內容：", "success");
                 print(JSON.stringify(data, null, 2));
                 
-                // 清理工作
-                document.getElementById('temp-script').remove();
+                // 清理
                 delete window[callbackName];
+                const s = document.getElementById('jsonp-script');
+                if(s) s.remove();
             };
 
-            // 4. 插入 Script 標籤
+            // 2. 插入 Script 標籤 (關鍵動作)
             const script = document.createElement('script');
-            script.id = 'temp-script';
+            script.id = 'jsonp-script';
             script.src = finalUrl;
 
-            // 5. 錯誤監聽
             script.onerror = function() {
-                print("連線崩潰 (Script Error) !!", "error");
-                print("iOS 封鎖原因推測：", "error");
-                print("- GAS 權限未設為 'Anyone'");
-                print("- 跨網域追蹤機制 (ITP) 攔截");
-                print("- HTTPS 憑證失效或網址拼接錯誤");
+                print("❌ JSONP 標籤載入失敗", "error");
             };
 
-            print(`等待 Google 回應 (Timeout 10s)...`, "info");
+            print("正在透過 Script 標籤注入請求...", "info");
             document.body.appendChild(script);
 
-            // 超時處理
+            // 超時檢查
             setTimeout(() => {
                 if (window[callbackName]) {
-                    print("錯誤：請求超時 (Google 沒反應)。", "error");
-                    print("請檢查 GAS 是否部署為『新版本』並且已存檔。", "error");
+                    print("❌ JSONP 超時：請檢查 GAS 是否正確回傳 callback 格式", "error");
                 }
-            }, 10000);
+            }, 8000);
         }
     </script>
 </body>

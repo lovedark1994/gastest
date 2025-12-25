@@ -3,73 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAS JSONP Debugger</title>
+    <title>GAS iOS 極速測試工具</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.5; background: #f4f4f9; }
-        input { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; width: 100%; }
-        #log { background: #000; color: #0f0; padding: 15px; margin-top: 20px; border-radius: 5px; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 200px; }
-        .error { color: #ff6b6b; }
-        .success { color: #51cf66; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background: #1a1a1a; color: #fff; }
+        .container { max-width: 600px; margin: 0 auto; }
+        button { 
+            width: 100%; padding: 15px; font-size: 18px; font-weight: bold;
+            background: #28a745; color: white; border: none; border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); active { transform: translateY(2px); }
+        }
+        #log { 
+            margin-top: 20px; background: #000; padding: 15px; border-radius: 8px;
+            font-family: "Courier New", Courier, monospace; font-size: 13px;
+            line-height: 1.6; overflow-x: auto; border: 1px solid #333;
+            min-height: 300px; white-space: pre-wrap;
+        }
+        .info { color: #aaa; }
+        .step { color: #00d4ff; font-weight: bold; }
+        .success { color: #2ecc71; }
+        .error { color: #e74c3c; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
-    <h2>GAS iOS 通訊除錯工具</h2>
-    <p>請輸入你的 GAS Web App URL：</p>
-    <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button onclick="startTest()">開始測試 (need=1)</button>
-
-    <div id="log">等待測試開始...</div>
+    <div class="container">
+        <h2>GAS 通訊一鍵測試</h2>
+        <p class="info">目標網址：AKfycby...Grn4m9E</p>
+        <button onclick="runTest()">開始偵測連線</button>
+        <div id="log">等待指令...</div>
+    </div>
 
     <script>
+        // 你的 GAS Web App URL
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbycb73uf529EJECnc80W4byxzStlCxtZfMay_-xm_8LGrn4m9E/exec";
         const logDiv = document.getElementById('log');
-        
-        function writeLog(msg, isError = false) {
-            const span = document.createElement('span');
-            span.className = isError ? 'error' : 'success';
-            span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
-            logDiv.appendChild(span);
-            logDiv.scrollTop = logDiv.scrollHeight;
+
+        function print(msg, type = '') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logDiv.appendChild(div);
+            window.scrollTo(0, document.body.scrollHeight);
         }
 
-        function startTest() {
-            const baseUrl = document.getElementById('urlInput').value.trim();
-            if (!baseUrl) {
-                alert("請先輸入網址！");
-                return;
+        function runTest() {
+            logDiv.innerHTML = ""; // 清空
+            print(">>> 啟動測試流程", "step");
+            print(`瀏覽器核心: ${navigator.userAgent}`, "info");
+
+            // 1. 檢查是否在 HTTPS
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                print("!! 警告: 非 HTTPS 環境可能導致 iOS 封鎖連線 !!", "error");
             }
 
-            logDiv.textContent = ""; // 清空 Log
-            writeLog("1. 初始化測試...");
-            writeLog(`瀏覽器資訊: ${navigator.userAgent}`);
-
-            // 建立動態 Callback 名稱
-            const callbackName = "cb_" + Date.now();
-            const fullUrl = `${baseUrl}?need=1&callback=${callbackName}&t=${Date.now()}`;
+            // 2. 準備 JSONP 參數
+            const callbackName = "jsonp_callback_" + Math.round(Math.random() * 100000);
+            const finalUrl = `${GAS_URL}?need=1&callback=${callbackName}&t=${Date.now()}`;
             
-            writeLog(`2. 發送請求...`);
-            writeLog(`完整 URL: ${fullUrl}`);
+            print(`發送 GET 請求 (JSONP 模式)...`, "step");
 
-            // 定義全域 Callback 函式 (模擬 JSONP)
+            // 3. 定義 Callback 處理函式
             window[callbackName] = function(data) {
-                writeLog("4. 收到回傳！資料格式解析成功。");
-                writeLog(`收到的內容: ${JSON.stringify(data).substring(0, 100)}...`);
-                // 清理標籤
+                print("成功：已從 Google 伺服器接收到數據！", "success");
+                print("回傳內容預覽：", "success");
+                print(JSON.stringify(data, null, 2));
+                
+                // 清理工作
+                document.getElementById('temp-script').remove();
                 delete window[callbackName];
             };
 
-            // 建立 Script 標籤發送請求
+            // 4. 插入 Script 標籤
             const script = document.createElement('script');
-            script.src = fullUrl;
+            script.id = 'temp-script';
+            script.src = finalUrl;
 
-            // 監聽載入失敗
+            // 5. 錯誤監聽
             script.onerror = function() {
-                writeLog("!! 載入失敗 (Script Error) !!", true);
-                writeLog("原因可能是: 1.網址錯誤 2.GAS未設為Anyone 3.跨網域被iOS封鎖 4.HTTPS憑證問題", true);
+                print("連線崩潰 (Script Error) !!", "error");
+                print("iOS 封鎖原因推測：", "error");
+                print("- GAS 權限未設為 'Anyone'");
+                print("- 跨網域追蹤機制 (ITP) 攔截");
+                print("- HTTPS 憑證失效或網址拼接錯誤");
             };
 
-            writeLog("3. Script 標籤已插入網頁，等待 Google 回應...");
+            print(`等待 Google 回應 (Timeout 10s)...`, "info");
             document.body.appendChild(script);
+
+            // 超時處理
+            setTimeout(() => {
+                if (window[callbackName]) {
+                    print("錯誤：請求超時 (Google 沒反應)。", "error");
+                    print("請檢查 GAS 是否部署為『新版本』並且已存檔。", "error");
+                }
+            }, 10000);
         }
     </script>
 </body>

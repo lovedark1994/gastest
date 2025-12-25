@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS JSONP Debugger</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.5; background: #f4f4f9; }
+        input { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; width: 100%; }
+        #log { background: #000; color: #0f0; padding: 15px; margin-top: 20px; border-radius: 5px; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 200px; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+    </style>
+</head>
+<body>
+    <h2>GAS iOS 通訊除錯工具</h2>
+    <p>請輸入你的 GAS Web App URL：</p>
+    <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    <button onclick="startTest()">開始測試 (need=1)</button>
+
+    <div id="log">等待測試開始...</div>
+
+    <script>
+        const logDiv = document.getElementById('log');
+        
+        function writeLog(msg, isError = false) {
+            const span = document.createElement('span');
+            span.className = isError ? 'error' : 'success';
+            span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+            logDiv.appendChild(span);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function startTest() {
+            const baseUrl = document.getElementById('urlInput').value.trim();
+            if (!baseUrl) {
+                alert("請先輸入網址！");
+                return;
+            }
+
+            logDiv.textContent = ""; // 清空 Log
+            writeLog("1. 初始化測試...");
+            writeLog(`瀏覽器資訊: ${navigator.userAgent}`);
+
+            // 建立動態 Callback 名稱
+            const callbackName = "cb_" + Date.now();
+            const fullUrl = `${baseUrl}?need=1&callback=${callbackName}&t=${Date.now()}`;
+            
+            writeLog(`2. 發送請求...`);
+            writeLog(`完整 URL: ${fullUrl}`);
+
+            // 定義全域 Callback 函式 (模擬 JSONP)
+            window[callbackName] = function(data) {
+                writeLog("4. 收到回傳！資料格式解析成功。");
+                writeLog(`收到的內容: ${JSON.stringify(data).substring(0, 100)}...`);
+                // 清理標籤
+                delete window[callbackName];
+            };
+
+            // 建立 Script 標籤發送請求
+            const script = document.createElement('script');
+            script.src = fullUrl;
+
+            // 監聽載入失敗
+            script.onerror = function() {
+                writeLog("!! 載入失敗 (Script Error) !!", true);
+                writeLog("原因可能是: 1.網址錯誤 2.GAS未設為Anyone 3.跨網域被iOS封鎖 4.HTTPS憑證問題", true);
+            };
+
+            writeLog("3. Script 標籤已插入網頁，等待 Google 回應...");
+            document.body.appendChild(script);
+        }
+    </script>
+</body>
+</html>
